@@ -11,8 +11,9 @@ volatile bool hit_confirmed = false;
 // Hardware configuration: Set up nRF24L01 radio on SPI bus plus pins 9 & 10 
 RF24 radio(9,10);
                                                                            // Topology
-byte addresses[][6] = {"1Node","2Node"};              // Radio pipe addresses for the 2 nodes to communicate.
+byte addresses[][6] = {"1Node","2Node","3Node"};              
 
+byte side = 0; // 0 | 1 : red | green
 
 void setup() {
   Serial.begin(9600);
@@ -28,8 +29,8 @@ void setup() {
   radio.enableAckPayload();               // Allow optional ack payloads
   radio.setRetries(0,15);                 // Smallest time between retries, max no. of retries
   radio.setPayloadSize(1);                // Here we are sending 1-byte payloads
-  radio.openWritingPipe(addresses[0]);    // Open different pipes when writing. Write on pipe 0, address 0
-  radio.openReadingPipe(1,addresses[1]);  // Read on pipe 1, as address 1
+  radio.openWritingPipe(addresses[1 + side]);    // Open different pipes when writing. Write on pipe 0, address 0
+  radio.openReadingPipe(1,addresses[0]);  // Read on pipe 1, as address 1
   radio.startListening();                 // Start listening
   radio.powerUp();
   radio.printDetails();                   // Dump the configuration of the rf unit for debugging
