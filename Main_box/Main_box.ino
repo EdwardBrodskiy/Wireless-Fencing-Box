@@ -1,4 +1,4 @@
-// debbug display
+// --- debbug display ---
 
 #include <Wire.h>
 
@@ -10,20 +10,26 @@ const int i2c_addr = 0x27;
 
 LiquidCrystal_I2C lcd(i2c_addr, en, rw, rs, d4, d5, d6, d7, bl, POSITIVE);
 
-String gap = "";
-// box logic
+int count = 0;
+volatile int i_count = 0;
 
-bool new_info = false;
+// --- box logic ---
 
+volatile bool new_info = false;
+
+volatile unsigned long hit_time[] = {0, 0};
+
+volatile bool hits[] = {false, false};
+
+unsigned long gap = 0;
+
+// output
 unsigned long last_change = 0;
-
-unsigned long hit_time[] = {0, 0};
-
-bool hits[] = {false, false};
 
 String results[] = {"Red Hit", "Green Hit", "Double"};
 
-// transmission
+// --- transmission ---
+
 #include <SPI.h>
 #include "nRF24L01.h"
 #include "RF24.h"
@@ -54,14 +60,55 @@ void setup() {
   radio.powerUp();
   radio.printDetails();                   // Dump the configuration of the rf unit for debugging
 
+  // setup interupt
+  pinMode(3, INPUT);
+  attachInterrupt(1, recieve, LOW);
+  
+  // lcd
   lcd.begin(16,2);
 
   lcd.setCursor(0,0);
-  lcd.print("Hello world!");
+  lcd.print("Welcome");
 
 }
 
 void loop() {
+  
+  if(new_info){
+    new_info = false;
+    count++;
+    if(hits[0] && hits[1]){
+      if(hit_time[0] > hit_time[1]){
+        gap = hit_time[0] - hit_time[1];
+      }else{
+        gap = hit_time[1] - hit_time[0];
+      }
+      
+      if(gap < 40){
+        output(results[2]);
+      }else if(hit_time[0] < hit_time[1]){
+        output(results[0]);
+      }else{
+        output(results[1]);
+      }
+    }else if(hits[0]){
+       output(results[0]);
+    }else if(hits[1]){
+       output(results[1]);
+    }
+    last_change = millis();
+  }
+ 
+  if((hits[0] or hits[1]) and ((millis() - last_change) > 3000)){
+     hits[0] = false;
+     hits[1] = false;
+     output("Fence");
+     count = 0;
+     i_count = 0;
+  }
+}
+
+void recieve(){
   byte pipeNo, gotByte;                          // Declare variables for the pipe and the byte received
   while( radio.available(&pipeNo)){              // Read all available payloads
     radio.read( &gotByte, 1 );                   
@@ -73,32 +120,9 @@ void loop() {
       hits[pipeNo - 1] = true;
       new_info = true;
     }
- }
- if(new_info){
-   if(hits[0] && hits[1]){
-      gap = String(abs(hit_time[0] - hit_time[1]));
-      
-      if(abs(hit_time[0] - hit_time[1]) < 40){
-        output(results[2]);
-      }else if(hit_time[0] < hit_time[1]){
-        output(results[0]);
-      }else{
-        output(results[1]);
-      }
-   }else if(hits[0]){
-      output(results[0]);
-   }else if(hits[1]){
-      output(results[1]);
-   }
-   last_change = millis();
-   new_info = false;
- }
- 
- if((hits[0] or hits[1]) and ((millis() - last_change) > 5000)){
-    hits[0] = false;
-    hits[1] = false;
-    output("Fence");
- }
+    i_count++;
+  }
+  
 }
 
 void output(String m){
@@ -106,5 +130,5 @@ void output(String m){
   lcd.setCursor(0,0);
   lcd.print(m); 
   lcd.setCursor(0,1);
-  lcd.print(gap);
+  lcd.print(String(gap) + " : " + String(count)+ " : " + String(i_count));
 }
