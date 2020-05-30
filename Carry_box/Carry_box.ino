@@ -1,10 +1,18 @@
+#define BLADE_BUTTON_OUT 4
+#define BLADE_BUTTON_IN 3
+#define RF_READ_INPUT 5
+
+
 // debug
 
-bool debug = false;
+bool debug = true;
 
 // blade
 volatile unsigned long hit_time;
-volatile bool hit_confirmed = false;
+volatile bool hit_detected = false;
+
+bool hit_not_on_guard = false;
+bool hit_confirmed = false;
 
 // transmission
 #include <SPI.h>
@@ -23,9 +31,9 @@ void setup() {
   if(debug) Serial.begin(9600);
   if(debug) printf_begin();
   
-  // setup interupt
-  pinMode(3, INPUT_PULLUP);
-  attachInterrupt(1, detect_hit, FALLING);
+  // setup hit monitoring
+  pinMode(RF_READ_INPUT, INPUT);
+  setup_detection();
   
   // setup transmission
   radio.begin();
@@ -41,21 +49,52 @@ void setup() {
   
 }
 
+void setup_detection(){
+  pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
+  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, FALLING);
+  pinMode(BLADE_BUTTON_OUT, OUTPUT);
+  digitalWrite(BLADE_BUTTON_OUT, LOW);
+  
+}
+
+bool listen_for_guard(){
+  detachInterrupt(BLADE_BUTTON_IN - 2);
+  pinMode(BLADE_BUTTON_IN, INPUT);
+  pinMode(BLADE_BUTTON_OUT, INPUT);
+  return digitalRead(RF_READ_INPUT);
+}
+
 void loop() {
-  //delay(1000);
-  //Serial.println(!digitalRead(3));
-  //Serial.println(millis() - hit_time);
-  if(hit_confirmed && (micros() - hit_time) > 1000 && !digitalRead(3)){
+  if(hit_detected){
+    hit_detected = false;
+    unsigned long timer = micros();
+    hit_not_on_guard = !listen_for_guard();
+    setup_detection();
+    if(debug) Serial.println("Hit detected: " + String(hit_not_on_guard) + " Took: " + (micros() - timer));
+  }
+  
+  if(hit_not_on_guard && ((micros() - hit_time) > 1000)){
+    hit_not_on_guard = false;
+    if(!digitalRead(BLADE_BUTTON_IN)){
+      hit_confirmed = true;
+    }
+  }
+
+  if(hit_confirmed){
+    if(debug) Serial.println("Hit Confirmed!");
     if(transmit_hit(1)){
       hit_confirmed = false;
     }
+    hit_confirmed = false; // quick debbug change !!!!!!!!!!!!!!!!!
   }
 
 }
 
 void detect_hit(){
+  if(debug) Serial.println("Interupt");
   hit_time = micros();
-  hit_confirmed = true;
+  hit_detected = true;
+  
 }
 
 bool transmit_hit(byte message){
