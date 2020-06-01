@@ -1,6 +1,7 @@
 #define BLADE_BUTTON_OUT 4
 #define BLADE_BUTTON_IN 3
-#define RF_READ_INPUT 5
+#define RF_READ 8
+#define RF_WRITE 7
 
 
 // debug
@@ -13,6 +14,16 @@ volatile bool hit_detected = false;
 
 bool hit_not_on_guard = false;
 bool hit_confirmed = false;
+
+// guard
+// TX
+byte last_bit_on_guard = 0;
+unsigned long last_bit_change = micros();
+const byte tx_rate = 64;
+// RX
+const byte rx_rate = 8;
+byte buff[1000 / rx_rate] = {0};
+
 
 // transmission
 #include <SPI.h>
@@ -32,8 +43,11 @@ void setup() {
   if(debug) printf_begin();
   
   // setup hit monitoring
-  pinMode(RF_READ_INPUT, INPUT);
   setup_detection();
+
+  // guard detection
+  pinMode(RF_READ, INPUT);
+  pinMode(RF_WRITE, OUTPUT);
   
   // setup transmission
   radio.begin();
@@ -50,18 +64,28 @@ void setup() {
 }
 
 void setup_detection(){
-  pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
-  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, FALLING);
   pinMode(BLADE_BUTTON_OUT, OUTPUT);
   digitalWrite(BLADE_BUTTON_OUT, LOW);
-  
+  pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
+  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, LOW);
 }
 
 bool listen_for_guard(){
-  detachInterrupt(BLADE_BUTTON_IN - 2);
-  pinMode(BLADE_BUTTON_IN, INPUT);
-  pinMode(BLADE_BUTTON_OUT, INPUT);
-  return digitalRead(RF_READ_INPUT);
+  
+  
+  int b_pointer = 0;
+  unsigned long t = micros() - 8;
+  unsigned long rx_start = micros();
+  while((micros() - rx_start) < 1000){
+    if ( (micros() - t) > 8){
+      t = micros();
+      buff[b_pointer] = digitalRead(RF_READ);
+      b_pointer++;
+    }
+  }
+  for(int b: buff) Serial.print(b);
+  Serial.println("");
+  return 1;
 }
 
 void loop() {
@@ -88,9 +112,21 @@ void loop() {
     hit_confirmed = false; // quick debbug change !!!!!!!!!!!!!!!!!
   }
 
+  if ( (micros() - last_bit_change) > tx_rate){
+    last_bit_change = micros();
+    digitalWrite(RF_WRITE, last_bit_on_guard);
+    if(last_bit_on_guard == 1){
+      last_bit_on_guard = 0;
+    }else{
+      last_bit_on_guard = 1;
+    }
+  }
 }
 
 void detect_hit(){
+  detachInterrupt(BLADE_BUTTON_IN - 2);
+  pinMode(BLADE_BUTTON_IN, INPUT);
+  pinMode(BLADE_BUTTON_OUT, INPUT);
   if(debug) Serial.println("Interupt");
   hit_time = micros();
   hit_detected = true;
