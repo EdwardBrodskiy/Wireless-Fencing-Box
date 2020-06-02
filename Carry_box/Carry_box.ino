@@ -5,15 +5,11 @@
 
 
 // debug
-
 bool debug = true;
 
 // blade
 volatile unsigned long hit_time;
 volatile bool hit_detected = false;
-
-
-
 
 // guard
 // TX
@@ -41,8 +37,12 @@ byte side = 1; // 0 | 1 : red | green
 void setup() {
   if(debug) Serial.begin(9600);
   if(debug) printf_begin();
-  
-  setup_hit_detection();
+
+  // setup hit detection
+  pinMode(BLADE_BUTTON_OUT, OUTPUT);
+  digitalWrite(BLADE_BUTTON_OUT, LOW);
+  pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
+  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, FALLING);
 
   // guard detection
   pinMode(RF_READ, INPUT);
@@ -62,14 +62,7 @@ void setup() {
   
 }
 
-void setup_hit_detection(){
-  pinMode(BLADE_BUTTON_OUT, OUTPUT);
-  digitalWrite(BLADE_BUTTON_OUT, LOW);
-  pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
-  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, FALLING);
-}
-
-void setup_hit_end_detection(){
+void setup_hit_end_detection(){ // setup interupt to that listens for button release
   pinMode(BLADE_BUTTON_OUT, OUTPUT);
   digitalWrite(BLADE_BUTTON_OUT, LOW);
   pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
@@ -111,7 +104,7 @@ void loop() {
       bool hit_transmitted = false;
       while(!hit_transmitted){
         if(debug) Serial.println("Hit Confirmed!");
-        if(transmit_hit(1)){
+        if(transmit(1)){
           hit_transmitted = true;
         }
         hit_transmitted = true; // quick debbug change as transsmission will never be successful (main box is off)
@@ -120,6 +113,7 @@ void loop() {
     
   }
 
+  // handels output on RF transmitter
   if ( (micros() - last_bit_change) > tx_rate){
     last_bit_change = micros();
     digitalWrite(RF_WRITE, last_bit_on_guard);
@@ -132,17 +126,20 @@ void loop() {
 }
 
 void detect_hit(){
-  
+  // remove the use of connection for the interupt to allow for data to pass
   detachInterrupt(BLADE_BUTTON_IN - 2);
   pinMode(BLADE_BUTTON_IN, INPUT);
   pinMode(BLADE_BUTTON_OUT, INPUT);
+  
   if(debug) Serial.println("Button Down");
+  // record hit data
   hit_time = micros();
   hit_detected = true;
   
 }
 
-void detect_hit_end(){
+void detect_hit_end(){ 
+  // change interupt to listen for button press again
   detachInterrupt(BLADE_BUTTON_IN - 2);
   attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, FALLING);
   if(debug) Serial.println("Button Up");
@@ -150,12 +147,12 @@ void detect_hit_end(){
 
 
 
-bool transmit_hit(byte message){
+bool transmit(byte message){
   bool success = false;
   byte gotByte;                                           // Initialize a variable for the incoming response
     
   radio.stopListening();                                  // First, stop listening so we can talk.      
-  // printf("Now sending %d as payload. ",message);                // Use a simple byte counter as payload
+  // printf("Now sending %d as payload. ",message);                
   unsigned long time = micros();                          // Record the current microsecond count   
   
   if ( radio.write(&message,1) ){                         // Send the counter variable to the other radio 
