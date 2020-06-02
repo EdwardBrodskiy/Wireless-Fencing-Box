@@ -12,8 +12,8 @@ bool debug = true;
 volatile unsigned long hit_time;
 volatile bool hit_detected = false;
 
-bool hit_not_on_guard = false;
-bool hit_confirmed = false;
+
+
 
 // guard
 // TX
@@ -22,7 +22,7 @@ unsigned long last_bit_change = micros();
 const byte tx_rate = 64;
 // RX
 const byte rx_rate = 8;
-byte buff[1000 / rx_rate] = {0};
+byte buff[1000 / rx_rate / 2] = {0};
 
 
 // transmission
@@ -42,8 +42,7 @@ void setup() {
   if(debug) Serial.begin(9600);
   if(debug) printf_begin();
   
-  // setup hit monitoring
-  setup_detection();
+  setup_hit_detection();
 
   // guard detection
   pinMode(RF_READ, INPUT);
@@ -63,53 +62,62 @@ void setup() {
   
 }
 
-void setup_detection(){
+void setup_hit_detection(){
   pinMode(BLADE_BUTTON_OUT, OUTPUT);
   digitalWrite(BLADE_BUTTON_OUT, LOW);
   pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
-  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, LOW);
+  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, FALLING);
 }
 
-bool listen_for_guard(){
-  
-  
+void setup_hit_end_detection(){
+  pinMode(BLADE_BUTTON_OUT, OUTPUT);
+  digitalWrite(BLADE_BUTTON_OUT, LOW);
+  pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
+  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit_end, RISING);
+}
+
+bool check_for_guard(){
+  digitalWrite(RF_WRITE, 0); // to remove noise
   int b_pointer = 0;
   unsigned long t = micros() - 8;
   unsigned long rx_start = micros();
   while((micros() - rx_start) < 1000){
     if ( (micros() - t) > 8){
       t = micros();
-      buff[b_pointer] = digitalRead(RF_READ);
-      b_pointer++;
+      buff[b_pointer++] = digitalRead(RF_READ);
     }
   }
-  for(int b: buff) Serial.print(b);
-  Serial.println("");
-  return 1;
+  // for(int b: buff) Serial.print(b);
+  //Serial.println("");
+  byte total = 0;
+  for(int b:buff) total += b;
+  
+  return total > 30;
 }
 
 void loop() {
   if(hit_detected){
     hit_detected = false;
+    
     unsigned long timer = micros();
-    hit_not_on_guard = !listen_for_guard();
-    setup_detection();
-    if(debug) Serial.println("Hit detected: " + String(hit_not_on_guard) + " Took: " + (micros() - timer));
-  }
-  
-  if(hit_not_on_guard && ((micros() - hit_time) > 1000)){
-    hit_not_on_guard = false;
-    if(!digitalRead(BLADE_BUTTON_IN)){
-      hit_confirmed = true;
+    
+    bool hit_on_guard = !check_for_guard();
+    
+    setup_hit_end_detection();
+    
+    if(!hit_on_guard && !digitalRead(BLADE_BUTTON_IN)){
+      if(debug) Serial.println("Guard detected: " + String(hit_on_guard) + " Took: " + (micros() - timer));
+      
+      bool hit_transmitted = false;
+      while(!hit_transmitted){
+        if(debug) Serial.println("Hit Confirmed!");
+        if(transmit_hit(1)){
+          hit_transmitted = true;
+        }
+        hit_transmitted = true; // quick debbug change as transsmission will never be successful (main box is off)
+      }
     }
-  }
-
-  if(hit_confirmed){
-    if(debug) Serial.println("Hit Confirmed!");
-    if(transmit_hit(1)){
-      hit_confirmed = false;
-    }
-    hit_confirmed = false; // quick debbug change !!!!!!!!!!!!!!!!!
+    
   }
 
   if ( (micros() - last_bit_change) > tx_rate){
@@ -124,14 +132,23 @@ void loop() {
 }
 
 void detect_hit(){
+  
   detachInterrupt(BLADE_BUTTON_IN - 2);
   pinMode(BLADE_BUTTON_IN, INPUT);
   pinMode(BLADE_BUTTON_OUT, INPUT);
-  if(debug) Serial.println("Interupt");
+  if(debug) Serial.println("Button Down");
   hit_time = micros();
   hit_detected = true;
   
 }
+
+void detect_hit_end(){
+  detachInterrupt(BLADE_BUTTON_IN - 2);
+  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, FALLING);
+  if(debug) Serial.println("Button Up");
+}
+
+
 
 bool transmit_hit(byte message){
   bool success = false;
