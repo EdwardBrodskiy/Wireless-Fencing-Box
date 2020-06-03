@@ -17,7 +17,7 @@ byte last_bit_on_guard = 0;
 unsigned long last_bit_change = micros();
 const byte tx_rate = 64;
 // RX
-const byte rx_rate = 8;
+const byte rx_rate = 8; // we actually sample at 16 micro seconds so it is currently a bodge :(
 byte buff[1000 / rx_rate / 2] = {0};
 
 
@@ -38,15 +38,16 @@ void setup() {
   if(debug) Serial.begin(9600);
   if(debug) printf_begin();
 
-  // setup hit detection
-  pinMode(BLADE_BUTTON_OUT, OUTPUT);
-  digitalWrite(BLADE_BUTTON_OUT, LOW);
-  pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
-  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, FALLING);
-
   // guard detection
   pinMode(RF_READ, INPUT);
   pinMode(RF_WRITE, OUTPUT);
+
+  // setup hit detection
+  pinMode(BLADE_BUTTON_OUT, OUTPUT);
+  pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
+  
+  digitalWrite(BLADE_BUTTON_OUT, LOW);
+  attachInterrupt(digitalPinToInterrupt(BLADE_BUTTON_IN), detect_hit, FALLING);
   
   // setup transmission
   radio.begin();
@@ -66,22 +67,24 @@ void setup_hit_end_detection(){ // setup interupt to that listens for button rel
   pinMode(BLADE_BUTTON_OUT, OUTPUT);
   digitalWrite(BLADE_BUTTON_OUT, LOW);
   pinMode(BLADE_BUTTON_IN, INPUT_PULLUP);
-  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit_end, RISING);
+  attachInterrupt(digitalPinToInterrupt(BLADE_BUTTON_IN), detect_hit_end, RISING);
 }
 
 bool check_for_guard(){
+  
   digitalWrite(RF_WRITE, 0); // to remove noise
   int b_pointer = 0;
-  unsigned long t = micros() - 8;
+  unsigned long t = micros() - rx_rate;
   unsigned long rx_start = micros();
   while((micros() - rx_start) < 1000){
-    if ( (micros() - t) > 8){
+    if ( (micros() - t) > rx_rate){
       t = micros();
       buff[b_pointer++] = digitalRead(RF_READ);
     }
   }
-  // for(int b: buff) Serial.print(b);
-  //Serial.println("");
+  
+  for(int b: buff) Serial.print(b);
+  Serial.println("");
   byte total = 0;
   for(int b:buff) total += b;
   
@@ -94,7 +97,7 @@ void loop() {
     
     unsigned long timer = micros();
     
-    bool hit_on_guard = !check_for_guard();
+    bool hit_on_guard = check_for_guard();
     
     setup_hit_end_detection();
     
@@ -127,7 +130,7 @@ void loop() {
 
 void detect_hit(){
   // remove the use of connection for the interupt to allow for data to pass
-  detachInterrupt(BLADE_BUTTON_IN - 2);
+  detachInterrupt(digitalPinToInterrupt(BLADE_BUTTON_IN));
   pinMode(BLADE_BUTTON_IN, INPUT);
   pinMode(BLADE_BUTTON_OUT, INPUT);
   
@@ -140,8 +143,8 @@ void detect_hit(){
 
 void detect_hit_end(){ 
   // change interupt to listen for button press again
-  detachInterrupt(BLADE_BUTTON_IN - 2);
-  attachInterrupt(BLADE_BUTTON_IN - 2, detect_hit, FALLING);
+  detachInterrupt(digitalPinToInterrupt(BLADE_BUTTON_IN));
+  attachInterrupt(digitalPinToInterrupt(BLADE_BUTTON_IN), detect_hit, FALLING);
   if(debug) Serial.println("Button Up");
 }
 
