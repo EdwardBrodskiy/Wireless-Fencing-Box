@@ -53,7 +53,7 @@ void setup() {
   radio.begin();
   radio.setAutoAck(1);                    // Ensure autoACK is enabled
   radio.enableAckPayload();               // Allow optional ack payloads
-  radio.setRetries(0,63);                 // Smallest time between retries, max no. of retries
+  radio.setRetries(0,15);                 // Smallest time between retries, max no. of retries
   radio.setPayloadSize(1);                // Here we are sending 1-byte payloads
   radio.openWritingPipe(addresses[1 + side]);    // Open different pipes when writing. Write on pipe 0, address 0
   radio.openReadingPipe(1,addresses[0]);  // Read on pipe 1, as address 1
@@ -83,8 +83,8 @@ bool check_for_guard(){
     }
   }
   
-  for(int b: buff) Serial.print(b);
-  Serial.println("");
+  //for(int b: buff) Serial.print(b);
+  //Serial.println("");
   byte total = 0;
   for(int b:buff) total += b;
   
@@ -107,9 +107,9 @@ void loop() {
       bool hit_transmitted = false;
       while(!hit_transmitted){
         if(debug) Serial.println("Hit Confirmed!");
-        if(transmit(1)){
-          hit_transmitted = true;
-        }
+        //if(transmit(1)){
+        //  hit_transmitted = true;
+        //}
         hit_transmitted = true; // quick debbug change as transsmission will never be successful (main box is off)
       }
     }
@@ -133,8 +133,6 @@ void detect_hit(){
   detachInterrupt(digitalPinToInterrupt(BLADE_BUTTON_IN));
   pinMode(BLADE_BUTTON_IN, INPUT);
   pinMode(BLADE_BUTTON_OUT, INPUT);
-  
-  if(debug) Serial.println("Button Down");
   // record hit data
   hit_time = micros();
   hit_detected = true;
@@ -145,7 +143,7 @@ void detect_hit_end(){
   // change interupt to listen for button press again
   detachInterrupt(digitalPinToInterrupt(BLADE_BUTTON_IN));
   attachInterrupt(digitalPinToInterrupt(BLADE_BUTTON_IN), detect_hit, FALLING);
-  if(debug) Serial.println("Button Up");
+  
 }
 
 

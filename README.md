@@ -1,5 +1,7 @@
 # Wireless-Fencing-Box
-DIY wireless fencing box 
+Arduino based Fencing box with wireless capabilities.
+
+
 
 
 Parts List:
@@ -19,4 +21,9 @@ Optional:
 
 - buzzer  x1
 - clip x2
-- 
+
+
+Development Notes:
+
+- Guard must be connected to transsmitter to prevent it as acting as part of a capacitor which charges up from one of the cables set to INPUT_PULLUP leading to its trigger when the guard touches a metal surface hence registering a false hit.
+- Serial.print although important for debbugging must not be used for prper testing it slows everything down to much(from 1024 micro secondd for hit cycle to 12000!).
