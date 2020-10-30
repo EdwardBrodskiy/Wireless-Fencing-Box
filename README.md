@@ -1,7 +1,6 @@
 # Wireless-Fencing-Box
 
-Arduino based Fencing box with wireless capabilities. Based on NRF24 communication between the box and the and the two carry modules. 
-With RF433 transmitter, reciever pair for detection of guard hits by making them work so badly as so to only allow transmittion on direct connection.  
+Arduino based Fencing box with wireless capabilities. Based on NRF24 communication between the box and the and the two carry modules. With RF433 transmitter, reciever pair for detection of guard hits by making them work so badly as so to only allow transmittion on direct connection.
 
 Parts List:
 
